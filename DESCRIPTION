@@ -1,0 +1,27 @@
+Package: OpTiles
+Title: Adaptive Tiling and Methylation Variability Profiling
+Version: 0.1.0
+Authors@R: person("Giorgia", "Migliaccio", email = "giorgia.migliaccio@tuni.fi", role = c("aut", "cre"))
+Description: OpTiles is an R package developed as a modular extension to the methylKit workflow (Akalin et al., 2012), aimed at improving region definition in DNA methylation analyses. Rather than relying on fixed genomic tiles, OpTiles refines regions based on the actual distribution of sequenced CpGs, making it especially useful for enrichment-based data like RRBS, where CpG coverage is sparse and non-uniform. The package introduces several key features: Optimization of tile positions to better reflect CpG density, Assessment of intra-region variability using the standard deviation of methylation values within a region, Calculation of an InfoScore that integrates CpG count and variability to prioritize stable, high-confidence regions, Annotation and overlap scoring using genomic features from public datasets (via biomaRt), including customizable overlap metrics
+License: MIT
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.3.2
+Imports:
+    GenomicRanges,
+    IRanges,
+    biomaRt,
+    data.table,
+    dplyr,
+    easyGgplot2,
+    genomation,
+    ggplot2,
+    gridExtra,
+    limma,
+    magrittr,
+    methylKit,
+    patchwork,
+    readxl,
+    stringr,
+    tidyr,
+    xfun

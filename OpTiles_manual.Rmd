@@ -1,0 +1,468 @@
+---
+title: "OpTiles Package Manual"
+author: "Giorgia Migliaccio"
+output: 
+  html_document:
+    theme: flatly
+    toc: yes
+    toc_float:
+      collapsed: true
+---
+
+# Introduction
+
+**OpTiles** is an R package developed as a modular extension to the [**methylKit**](https://bioconductor.org/packages/release/bioc/html/methylKit.html) workflow (Akalin et al., 2012), aimed at improving region definition in DNA methylation analyses. While the package integrates seamlessly with methylKit, most OpTiles functions operate on methylation data paired with genomic coordinates. This makes them compatible with data from other sequencing platforms or technologies, offering broader applicability beyond methylKit. Rather than relying on fixed genomic tiles, OpTiles refines regions based on the actual distribution of sequenced CpGs, making it especially useful for enrichment-based data like RRBS, where CpG coverage is sparse and non-uniform.
+
+The package introduces several key features:
+
+- **Optimization of tile positions** to better reflect CpG density
+- **Assessment of intra-region variability** using the standard deviation of methylation values within a region
+- **Calculation of an InfoScore** that integrates CpG count and variability to prioritize stable, high-confidence regions
+- **Annotation and overlap scoring** using genomic features from public datasets (via `biomaRt`), including customizable overlap metrics
+
+
+All OpTiles functions are modular and can be used independently, as long as the required inputs are provided. However, since OpTiles wraps certain `methylKit` functionalities, it is also possible to run parts of the standard methylKit workflow (including IDAT import and data visualization) within the same environment. This makes it easier to integrate OpTiles enhancements directly into existing pipelines.
+
+This manual will guide you through the full OpTiles workflow, demonstrating both core steps and **additional OpTiles functionalities**. In particular, it will highlight where OpTiles extends the standard pipeline with tools for tile optimization, variability scoring, and enhanced region filtering.
+
+The recommended analysis pipeline includes the following steps:
+
+1. Load and Visualize the data
+2. Filter the data and Compute differentially methylated CpGs (DMCpGs)
+3. Generate tiled windows and Optimize tile definitions *(OpTiles)*
+4. Compute intra-region standard deviation *(OpTiles)*
+5. Filter unstable or low-confidence regions and Identify differentially methylated regions (DMRs)
+6. Annotation with biomaRt, CpGIsland and enhancers
+
+## Data Compatibility and Usage Context
+
+In the workflow presented here, the input data is formatted as a methylKit object. However, all OpTiles functions are also compatible with standard data frames, as long as genomic coordinates and betavalues are provided. These coordinates must be specified either as a single string in the format chr*:start-end or as three separate columns (chr, start, and end).
+
+---
+
+# Load and Visualize the data
+
+To begin processing DNA methylation data with **OpTiles**, you first need to load Bismark coverage files (`*.bismark.cov.gz`) into a `methylBase` object using the `load_methylation_data()` function. This function can be used only if you have data compatible with the ones required in methylKit since it will use their package functions.
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+library(OpTiles)
+library(dplyr)
+library(methylKit)
+library(ggplot2)
+library(tidyr)
+library(genomation)
+library(readxl)
+library(writexl)
+library(xfun)
+library(limma)
+library(data.table)
+library(openxlsx)
+library(stringr)
+metadata <- read_excel("/project/qkgimi/optiles/data/preprocessed_files//metadata.xlsx")
+
+```
+
+```r
+meth <- load_methylation_data(
+  idat_repository = "/optiles/data/m1m2_data/",
+  sample_name_variable = "sample",
+  treatment_variable = "treatment_vector",
+  mincov = 10,
+  individual_sample_plot = TRUE,
+  filter_high_percentage = TRUE,
+  normalization_coverage = TRUE,
+  method_normalization = "median",
+  metadata = metadata
+)
+```
+
+- *metadata*: A data frame containing metadata for the samples. Must include:
+  A column with sample names that match Bismark file names (excluding .bismark.cov.gz).
+  A numeric column encoding treatment groups.
+- *idat_repository*: Character. Path to the directory containing Bismark coverage files.
+- *sample_name_variable*: Character. Name of the column in metadata with sample names.
+- *treatment_variable*: Character. Name of the column in metadata indicating treatment group as numeric values.
+- *mincov*: Integer. Minimum read coverage required per CpG site (e.g., 10).
+- *individual_sample_plot*: Logical. If TRUE, generates coverage (with `methylKit::getCoverageStats()`) and methylation (with `methylKit::getMethylationStats()`) distribution plots for each sample. Useful for quality control.
+- *filter_high_percentage*: Logical. If TRUE, removes CpG sites with coverage in the top 0.1% to avoid technical artifacts.
+- *normalization_coverage*: Logical. If TRUE, normalizes coverage across samples before uniting.
+- *method_normalization*: Character. Normalization method to use. Options are "median" (default) or "mean".
+- *assembly*: Character. Genome assembly name (default: "hg38").
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, paged.print=FALSE}
+head((metadata[,c("sample","treatment_vector","condition")]))
+```
+
+This function returns a methylBase object containing methylation values across all samples, which can be passed to other methylKit or OpTiles functions for downstream analysis. Once loaded with `load_methylation_data()`, the data can be filtered, visualized, and analyzed using the subsequent functions provided in the **OpTiles** workflow.
+When used in combination with `analyze_methylation_stats()`, the tool generates plots that provide an overview of coverage and methylation levels across all samples. For coverage plots, the input must be a data frame or matrix containing a coverage column. For methylation plots, the function requires a beta value matrix, the corresponding metadata, and the name of the column in the metadata that contains the sample identifiers.
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+meth <- load_methylation_data(
+  idat_repository = "/project/qkgimi/optiles/data/preprocessed_files//",
+  sample_name_variable = "sample",
+  treatment_variable = "treatment_vector",
+  mincov = 10,
+  individual_sample_plot = FALSE, #suggested to give a look to the data
+  filter_high_percentage = TRUE,
+  normalization_coverage = TRUE,
+  method_normalization = "median",
+  metadata = metadata
+)
+
+methdf <- getData(meth)
+
+```
+```{r message=FALSE, warning=FALSE, echo=FALSE, paged.print=FALSE}
+analyze_methylation_stats(
+  meth = methdf,
+  variable_to_investigate = "coverage", 
+  position_text = 100)
+```
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# Extract percent methylation values (beta values)
+betavalue <- percMethylation(meth)
+betavalue_df <- as.data.frame(betavalue)
+location_all_cpgs <- paste0("chr", meth$chr, ":", meth$start, "-", meth$end)
+rownames(betavalue_df) <- location_all_cpgs
+
+```
+```{r message=FALSE, warning=FALSE, echo=FALSE, paged.print=FALSE}
+analyze_methylation_stats(
+  meth = betavalue_df,
+  variable_to_investigate = "betavalue", 
+  position_text = 45,
+  metadata = metadata,
+  sample_name_variable = "sample")
+```
+
+# Filter the data and differentially methylated CpGs
+
+Before conducting differential methylation analysis on CpGs, you can filter out CpGs that exhibit high variability in beta values within the groups of interest using the `filter_by_beta_in_cpgs()` function. This function evaluates the beta value matrix by calculating the difference between the maximum and minimum beta values within each defined group, and excludes CpGs where this difference meets or exceeds a specified threshold. The function returns a character vector of CpG site genomic location that passed the filtering (i.e., all groups have delta beta < threshold). Then the user can perform differential methylation with `methylKit::calculateDiffMeth` (if filtered a methylkitObject) or other tools.
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+groups_control <- unique(metadata$condition[metadata$sample_type == "control"])
+filtered_locations <- filter_by_beta_in_cpgs(
+  betavalue_df = betavalue_df,
+  threshold_delta_beta = 25,
+  groups = groups_control
+)
+
+idx_filtering <- which(rownames(betavalue_df)%in% filtered_locations)
+
+betavalue_filtered <- betavalue_df[idx_filtering,]
+meth_filtered <- meth[idx_filtering,]
+```
+
+
+
+# Generate and optimize tile definitions
+
+Using the `methylKit::tileMethylCounts` function, users can define genomic regions (tiles) of a specific dimension (e.g. 300bp) for methylation analysis. To visualize the tiles data, the `analyze_methylation_stats()` function generates plots that summarize coverage and methylation levels across all samples within each region, as done previously on individual CpGs sites.
+
+OpTiles offers new functions to explore the distribution of CpG sites within these regions.
+The `map_cpg_to_regions()` function associates each CpG with its corresponding region by computing overlaps between CpG and region genomic coordinates. This allows users to visualize the distribution of CpG density across regions using dedicated plots. The function requires as input the genomic locations of both CpGs and regions.
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+#Build regions
+length_region = 300
+tiles = tileMethylCounts(meth_filtered,win.size=length_region,step.size=length_region,cov.bases = 0)
+#Assign to each region the CpGs
+regions_cpgs <- map_cpg_to_regions(methdf = meth_filtered,
+                                   region = tiles)
+# Compute the number of CpG sites per region
+N_cpg_regions <- as.data.frame(table(regions_cpgs$region_id))
+N_cpg_regions_before_merging <- N_cpg_regions
+
+```
+```{r message=FALSE, warning=FALSE, echo=FALSE, paged.print=FALSE}
+# Load and execute the histogram function
+do_histogram_with_statistics(
+  vect = as.numeric(N_cpg_regions$Freq),
+  title = "Number of CpG Sites in original Tiles",
+  x_axis = "Number of Sites",
+  text_position = 80,
+  color_plot = "red"
+)
+```
+
+**With OpTiles it can be possible to repositioning the tiles based on the actual distribution of sequenced CpGs.** This ensures that tiles are anchored in informative regions, particularly useful in enrichment-based datasets where coverage is sparse and localized. Importantly, while tile locations are adjusted to match the data, the original tile size is preserved to maintain consistency in downstream comparisons. **OpTiles**  identifies pairs of consecutive tiles, defined as directly adjacent, non-overlapping pairs. For each candidate tiles pair, OpTiles maps all CpG positions and calculates two distances: (1) DA, the distance between the first CpG of the first tile and the last CpG of the second; and (2) CB, the distance between the last CpG of the first tile and the first CpG of the second. Both distances are always evaluated. If the DA value is below the tile size, the tiles are merged into a single region encompassing all CpGs from both. If DA exceeds the threshold but CB is below it, OpTiles generates a series of new, fixed-size regions starting from the first CpG in the pair, each with the same length as the original tile. Among these, the region with the highest CpG count is selected. In case of ties, the first region appearing in the 3′ genomic direction is retained. If neither DA nor CB meet the merging criteria, the tiles are left unaltered.
+
+```{r myplot2, fig.width=20, fig.height=15, message=FALSE, warning=FALSE, echo=FALSE, paged.print=FALSE}
+
+knitr::include_graphics("data/m1m2_data_onechromosome/merging_rules.png")
+```
+
+This optimization is performed using the `merging_consecutive_regions()` function, which takes as input the original CpGs genomic location matrix, the tiles dataframe (obtained with getData of the tiles produced by methylKit), and a threshold distance between CpGs (as default use the dimension of the tiles, in our case we used 300bp), and produce as outputs an improved, data-driven tile definition as a dataframe containing new optimized regions. This step may take several minutes, depending on the size of your dataset. Additionally, you can have an idea on how many consecutive pairs there are in your data, and how many fall in the different category for merging.
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, paged.print=FALSE}
+region_length = 300
+regions_plus_merged_regions <- merging_consecutive_regions(meth_filtered, 
+                                                           tiles,
+                                                           da_thr = region_length,
+                                                           cb_thr = region_length)
+```
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, paged.print=FALSE}
+head((regions_plus_merged_regions))%>% print(row.names = FALSE)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+betavalue_filtered <- percMethylation(meth_filtered)
+location_all_cpgs_filtered <- paste0("chr", meth_filtered$chr, ":", meth_filtered$start, "-", meth_filtered$end)
+betavalue_filtered <- as.data.frame(betavalue_filtered)
+rownames(betavalue_filtered) <- location_all_cpgs_filtered
+
+regions_cpgs_merged <- assign_beta_merged_regions(regions = regions_plus_merged_regions,
+                                                  cpgs = meth_filtered,
+                                                  betavalue = betavalue_filtered)
+
+N_cpg_regions <- as.data.frame(table(regions_cpgs_merged$regions_cpgs$region_id))
+N_cpg_regions_after_merging <- N_cpg_regions
+```
+
+And you can visualize again how the number of CpGs/regions have changed after the merging.
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, paged.print=FALSE}
+# Load and execute the histogram function
+do_histogram_with_statistics(
+  vect = as.numeric(N_cpg_regions$Freq),
+  title = "Number of Sites in Regions after merging of consecutive regions",
+  x_axis = "Number of Sites",
+  text_position = 80,
+  color_plot = "red"
+)
+```
+
+
+# Intra-region variability
+
+When summarizing DNA methylation over regions, it’s common to take the average of CpG methylation values. Some methods also weight this average by read coverage to correct for differences in sequencing depth. However, averaging can hide differences between CpGs within the same region. These differences may come from biological factors like mixed cell types, or from technical noise.
+To capture this, OpTiles calculates the standard deviation (SD) of methylation values for CpGs in each region, based on user-defined sample groups (e.g., replicates). This helps identify unstable regions, which can be excluded or flagged to improve the reliability of downstream analysis.
+
+To assess intra-region variability, the `compute_beta_sd_regions()` function calculates the standard deviation (SD) of CpG methylation (beta values) within each region across replicates. Before using this function, beta values must first be assigned to the regions using the `assign_beta_merged_regions()` function. This step requires as input: the new regions, CpG genomic locations, and the beta value matrix.
+
+Once this assignment is complete, the resulting output can be passed to `compute_beta_sd_regions()`. You must also specify the grouping variable (e.g., replicates or experimental conditions) across which the SD should be computed. In addition to calculating the SD, the function also visualizes the distribution of these values, helping to identify regions with high or low variability.
+
+The input data frame for `compute_beta_sd_regions()` must include beta values, region coordinates, and CpG locations in the following format.
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, paged.print=FALSE}
+head((regions_cpgs_merged$regions_merged_cpg_beta[, c(1:6)]))%>% print(row.names = FALSE)
+```
+
+The function returns a plot showing the distribution of beta value SD, along with a data frame containing the SD values for each region within the specified groups (either individual sample, or grouping together the biological replicates; you can freely decide by selecting the groups).
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+#if you want to investigate the standard deviation within region across the groups
+groups_sd<- unique(metadata$condition)
+```
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, paged.print=FALSE}
+sd_regions <- compute_beta_sd_regions(regions_cpgs = regions_cpgs_merged$regions_merged_cpg_beta,
+                                      groups = groups_sd) 
+```
+```{r, message=FALSE, warning=FALSE, echo=FALSE, paged.print=FALSE}
+head((sd_regions[,c(1:2)]))%>% print(row.names = FALSE)
+```
+
+At this point, you can optionally filter regions based on the number of CpGs and their methylation variability (SD). To support this, **OpTiles** introduces the **InfoScore**, a simple yet effective metric that combines **CpG density** with **intra-region variability**. Regions that contain more CpGs and show lower variability receive higher InfoScores, since they are considered  more reliable due to consinstent methylation value and higher number of CpGs. This scoring system helps prioritize high-confidence regions.
+
+$$
+\text{InfoScore} = \frac{\text{N}_{CpG}}{\text{Region Length}} \times \frac{1}{\text{SD}}
+$$
+
+In here you can see some example of intra-region variability and infoscore values.
+
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, paged.print=FALSE}
+regions_length = 300
+infoscore_df <- sd_regions
+infoscore_df$NCpGs <- N_cpg_regions_after_merging$Freq[match(infoscore_df$region_id, N_cpg_regions_after_merging$Var1)]
+
+infoscore_df$infoscore_C <-   as.numeric(infoscore_df$NCpG)/regions_length/infoscore_df[["72_C"]]
+infoscore_df$infoscore_M1 <-   as.numeric(infoscore_df$NCpG)/regions_length/infoscore_df[["72_M1"]]
+infoscore_df$infoscore_M2 <-   as.numeric(infoscore_df$NCpG)/regions_length/infoscore_df[["72_M2"]]
+
+infoscore_df <- infoscore_df[order(infoscore_df$infoscore_C)]
+
+
+library(data.table)
+setDT(infoscore_df)
+
+replace_inf <- function(x) {
+  max_val <- max(x[!is.infinite(x)], na.rm = TRUE)
+  fifelse(is.infinite(x), max_val , x)
+}
+infoscore_df[, infoscore_C_adj := replace_inf(infoscore_C)]
+
+infoscore_df[, rank_C := rank(-infoscore_C_adj, ties.method = "min", na.last = "keep")]
+
+#borda ranking
+#infoscore_df[, borda_score := rank_C + rank_M1 + rank_M2]
+
+df_top <- infoscore_df[order(rank_C, decreasing = F)]
+df_top <- df_top[df_top$NCpGs>2,]
+#head(df_top, 5)
+
+#bottom ranked
+df <- regions_cpgs_merged$regions_merged_cpg_beta[regions_cpgs_merged$regions_merged_cpg_beta$region_id == df_top$region_id[nrow(df_top)], c(1:5)]
+
+inf_df <- infoscore_df$infoscore_C[infoscore_df$region_id == df_top$region_id[nrow(df_top)]]
+
+df_long <- df %>%
+  pivot_longer(cols = starts_with("72_C_"), 
+               names_to = "sample", 
+               values_to = "value")
+df_long$pos <- sub(".*:(\\d+)-.*", "\\1", df_long$cpg_id)
+
+ggplot(df_long, aes(x = pos, y = value, color = sample, group = sample)) +
+  geom_line() +
+  geom_point() +
+  theme_minimal() +
+  labs(x = "chr1", y = "Methylation (%)", title = "Methylation levels per CpG") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  annotate("text", x = 1, y = 105, label = paste0("Infoscore = ",round(inf_df,2)), size = 4)+
+  annotate("text", x = 2.2, y = 105, label = paste0("",unique(df$region_id)), size = 4)
+```
+
+```{r myplot1, fig.width=14, fig.height=6, message=FALSE, warning=FALSE, echo=FALSE, paged.print=FALSE}
+#top ranked
+df <- regions_cpgs_merged$regions_merged_cpg_beta[regions_cpgs_merged$regions_merged_cpg_beta$region_id == df_top$region_id[1], c(1:5)]
+
+inf_df <- infoscore_df$infoscore_C[infoscore_df$region_id == df_top$region_id[1]]
+
+df_long <- df %>%
+  pivot_longer(cols = starts_with("72_C_"), 
+               names_to = "sample", 
+               values_to = "value")
+df_long$pos <- sub(".*:(\\d+)-.*", "\\1", df_long$cpg_id)
+
+ggplot(df_long, aes(x = pos, y = value, color = sample, group = sample)) +
+  geom_line() +
+  geom_point() +
+  theme_minimal() +
+  labs(x = "chr1", y = "Methylation (%)", title = "Methylation levels per CpG") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  annotate("text", x = 10, y = 105, label = paste0("Infoscore = ",round(inf_df,2)), size = 4)+
+  annotate("text", x = 50, y = 105, label = paste0("",unique(df$region_id)), size = 4)
+```
+
+
+Filtered regions can be converted into a new methylKit-compatible object using the `convert_to_methylobj()` function, enabling downstream differential methylation analysis with `methylKit::calculateDiffMeth`. This function takes as input the genomic coordinates of the optimized regions and the original methylKit object containing CpG-level data. If you only need the data frame with the new regions and their beta values, you can apply `methylKit::getData()` to the output of `convert_to_methylobj()`.
+
+# Annotation of regions
+
+Once the regions or the differentially methylated regions (DMRs) have been identified, they can be linked to functionally relevant genes based on their genomic coordinates. The Ensembl biomaRt database provides comprehensive gene annotation data, including genomic locations of exons, UTRs, and full gene bodies.
+
+To simplify this process, OpTiles includes a dedicated function that retrieves gene annotations directly from biomaRt and extracts relevant gene features. This allows users to annotate DMRs with biologically meaningful context. Since  biomaRt does not directly provide promoter regions, users can specify the promoter boundaries by setting the promoter_distance parameter when calling the function.
+
+The `biomart_annotation()` function supports the following arguments:
+
+- biomart_database: Name of the biomaRt database to query (e.g., "ensembl").
+- biomart_dataset: Dataset within the biomaRt database (e.g., "hsapiens_gene_ensembl").
+- chromosome_vector: Vector of chromosome names to filter (e.g., c("1", "2", "X")).
+- selected_attributes: Specific biomaRt attributes to retrieve.
+- attributes_page: Page in biomaRt from which to select attributes.
+- gene_biotype: Filter for a specific gene biotype (e.g., "protein_coding").
+- filter_gene_biotype: A vector of gene biotypes to include.
+- promoter_distance: A numeric vector of length two defining upstream and downstream distances for promoter regions (e.g., c(1000, 200)).
+
+The output dataframe will be as the following:
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+load("results/annotation_human.RData")
+```
+```{r message=FALSE, warning=FALSE, echo=FALSE, paged.print=FALSE}
+head(annotation_df)%>% print(row.names = FALSE)
+```
+The `map_to_region()` function allows you to map regions of interest onto annotated genomic features. To perform the mapping, the input regions must include genomic coordinates. The output is a data frame where each row represents a region pair (input region and overlapping annotation), including:
+
+- the genomic location of overlapping windows
+- the number of overlapping bp
+- the percentage of overlapping bp
+- the number of CpGs (analysed) in the overlapping regions
+- annotated gene
+- annotated genomic location if added (e.g. TSS, exons, 5UTR, 3UTR)
+
+Metrics like the percentage of overlap and the number of overlapping CpGs can be used to prioritize mapped regions or to apply thresholds for filtering more reliable overlaps. 
+OpTiles provides highly flexible annotation capabilities—using the `map_to_region() `function, you can map any dataset that includes genomic coordinates, enabling versatile integration with custom or standard annotation files. Also individual CpGs location can mapped.
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+annotated <- map_regions(sample_to_map =  regions_plus_merged_regions, annotation = annotation_df, origin_annotation = "gene")
+```
+```{r message=FALSE, warning=FALSE, echo=FALSE, paged.print=FALSE}
+head(annotated)%>% print(row.names = FALSE)
+
+library(ggplot2)
+all_regions <- unique(regions_plus_merged_regions$region_id)
+annotated_regions <- unique(annotated$region_id)
+overlap <- length(intersect(all_regions, annotated_regions))
+non_overlap <- length(setdiff(all_regions, annotated_regions))
+
+df <- data.frame(
+  category = c("Overlap", "No Overlap"),
+  count = c(overlap, non_overlap)
+)
+
+ggplot(df, aes(x = category, y = count, fill = category)) +
+  geom_col() +
+  scale_fill_manual(values = c("Overlap" = "#2F3E9E", "No Overlap" = "#F25C54")) +
+  geom_text(aes(label = count), vjust = -0.5) +
+  labs(title = "Overlap of regions with annotated data",
+       y = "Number of regions",
+       x = "") +
+  theme_minimal()
+
+
+ggplot(annotated, aes(x = pct_merged)) +
+  geom_histogram(fill = "#2F3E9E", bins = 30) +
+  labs(title = "Distribution %overlap",
+       x = "% overlap",
+       y = "Freq") +
+  theme_minimal()
+
+
+```
+
+
+By selecting a subset of genes and, for example, grouping all exons under the gene body (as in the script below), you can visualize how many regions have been mapped to each specific genomic feature.
+
+```{r}
+#Example of plot
+
+annotated[which(!(annotated$gene_loci %in% c("3UTR", "5UTR", "promoter","entire_gene"))), "gene_loci"] <- "gene_body"
+
+# Count occurrencies
+count_long <- annotated %>%
+    count(gene, gene_loci)%>%
+    complete(gene, gene_loci, fill = list(n = 0))
+
+count_long <- count_long[order(count_long$n, decreasing = T),]
+sample_genes <- sample(count_long$gene,size = 10)
+
+# Heatmap
+  p<-ggplot(count_long[count_long$gene %in% sample_genes,], aes(x = gene_loci, y = gene, fill = n)) +
+    geom_tile(color = "grey90") +
+    scale_fill_gradient(low = "white", high = "steelblue") +
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(angle = 90, hjust = 1, size = 10),
+      axis.text.y = element_text(size = 10),
+      strip.text = element_text(size = 10, face = "bold")
+      ) +
+    labs(
+      title = "Gene × Region Heatmap",
+      x = "Genomic Region",
+      y = "Gene",
+      fill = "Count"
+    ) 
+```
+```{r message=FALSE, warning=FALSE, echo=FALSE, paged.print=FALSE}
+print(p)
+```
+
+
+
+
+
+
+
