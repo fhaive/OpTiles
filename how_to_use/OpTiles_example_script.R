@@ -20,7 +20,7 @@ metadata <- read_excel("/project/qkgimi/optiles/data/preprocessed_files//metadat
 # CpG analysis 
 ## Load preprocessed files ----
 meth <- load_methylation_data(
-  idat_repository = "/project/qkgimi/optiles/data/preprocessed_files//",
+  repository = "/project/qkgimi/optiles/data/preprocessed_files//",
   sample_name_variable = "sample",
   treatment_variable = "treatment_vector",
   mincov = 10,

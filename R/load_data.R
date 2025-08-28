@@ -8,7 +8,7 @@
 #'       the Bismark coverage file names (excluding the `.bismark.cov.gz` extension).
 #'   - A numeric vector column (name given by `treatment_variable`) encoding the treatment groups,
 #'       with length equal to the number of samples/files.
-#' @param idat_repository Path to directory containing Bismark coverage files where the samples are ordered as in the metadata(`*.bismark.cov.gz`).
+#' @param repository Path to directory containing Bismark coverage files where the samples are ordered as in the metadata(`*.bismark.cov.gz`).
 #' @param sample_name_variable Character string specifying the metadata column with sample names.
 #' @param treatment_variable Character string specifying the metadata column with numeric treatment encoding.
 #' @param mincov Minimum coverage threshold per CpG site (integer >= 1).
@@ -24,7 +24,7 @@
 #' @details
 #' The metadata must meet the following requirements:
 #'   The sample names in `metadata[[sample_name_variable]]` must exactly match
-#'         the coverage file names (without extensions) in `idat_repository`.
+#'         the coverage file names (without extensions) in `repository`.
 #'   The treatment column specified by `treatment_variable` must be numeric and have the same length as the sample names.
 #'
 #' The function uses \code{methylKit} to read, normalize, filter, and unite methylation data.
@@ -32,7 +32,7 @@
 #' If \code{normalization_coverage} is TRUE, coverage will be normalized using the specified method (\code{"median"} or \code{"mean"}) before uniting data.
 #' @importFrom methylKit methRead unite normalizeCoverage filterByCoverage
 #' @export
-load_methylation_data <- function(metadata, idat_repository, sample_name_variable, 
+load_methylation_data <- function(metadata, repository, sample_name_variable, 
                                   treatment_variable,
                                   mincov, 
                                   individual_sample_plot = TRUE, 
@@ -49,13 +49,13 @@ load_methylation_data <- function(metadata, idat_repository, sample_name_variabl
     stop("Length of sample_name_variable and treatment_variable columns must be equal")
   }
   if (!is.numeric(metadata[[treatment_variable]])) stop("treatment_variable column must be numeric")
-  if (!dir.exists(idat_repository)) stop("idat_repository folder does not exist")
+  if (!dir.exists(repository)) stop("repository folder does not exist")
   if (!is.numeric(mincov) || mincov < 1) stop("mincov must be numeric and >= 1")
   
   # List Bismark coverage files and extract base names
-  file_list <- list.files(path = idat_repository, pattern = "bismark.cov.gz$", full.names = TRUE)
+  file_list <- list.files(path = repository, pattern = "bismark.cov.gz$", full.names = TRUE)
   if (length(file_list) != nrow(metadata)) {
-    stop("Number of Bismark files in 'idat_repository' does not match the number of samples in metadata.")
+    stop("Number of Bismark files in 'repository' does not match the number of samples in metadata.")
   }
   if (length(file_list) != length(metadata[[sample_name_variable]])) {
     stop("Mismatch between number of Bismark files and sample names in metadata.")
