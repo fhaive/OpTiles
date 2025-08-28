@@ -10,14 +10,15 @@ The package implements the methods and algorithms described in the following sci
 If you use this package in your research, please cite the paper using the citation provided.
 
 ## Installation
-To install OpTiles, first install its dependencies:
-```
+To install OpTiles, and download the packages
+
+git clone https://github.com/fhaive/OpTiles.git
+cd OpTiles
+
+R
 renv::restore()
-```
-Then, install OpTiles using devtools:
-```
 devtools::install(".")
-```
+
 
 ## Example script
 The script `how_to_use/OpTiles_example_script.R` contains the steps to reproduce the analysis described in the manual.
