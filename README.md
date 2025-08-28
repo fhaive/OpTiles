@@ -12,6 +12,7 @@ If you use this package in your research, please cite the paper using the citati
 ## Installation
 To install OpTiles, and download the packages
 
+```
 git clone https://github.com/fhaive/OpTiles.git
 cd OpTiles
 
@@ -19,6 +20,7 @@ R
 renv::restore()
 devtools::install(".")
 
+```
 
 ## Example script
 The script `how_to_use/OpTiles_example_script.R` contains the steps to reproduce the analysis described in the manual.
