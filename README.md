@@ -11,15 +11,10 @@ If you use this package in your research, please cite the paper using the citati
 
 ## Installation
 To install OpTiles, first install its dependencies:
-
 ```
-something like..
-clusterProfiler >= 3.14.3 
-
+renv::restore()
 ```
-
 Then, install OpTiles using devtools:
-
 ```
 devtools::install(".")
 ```
