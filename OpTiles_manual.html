@@ -1606,8 +1606,11 @@ methylKit.</p>
 <ul>
 <li><em>metadata</em>: A data frame containing metadata for the samples.
 It includes: A column with sample names that match Bismark file names
-(excluding .bismark.cov.gz). A numeric column encoding treatment
-groups.</li>
+(excluding .bismark.cov.gz). A numeric column encoding treatment groups.
+A condition column that derive from a substring or pattern in sample
+names; it can help to create groups of interest that are recalled in
+other functions (e.g.<code>filter_by_beta_in_cpgs</code> or
+<code>compute_beta_sd_regions</code>)</li>
 <li><em>repository</em>: Character. Path to the directory containing
 Bismark coverage files.</li>
 <li><em>sample_name_variable</em>: Character. Name of the column in
@@ -1682,7 +1685,7 @@ this difference equals or exceeds a user-specified threshold are
 excluded. The function returns a character vector of CpG genomic
 locations that pass the filter, i.e., sites where all groups show a
 delta beta below the threshold.</p>
-<pre class="r"><code>groups_control &lt;- unique(metadata$condition[metadata$sample_type == &quot;control&quot;])
+<pre class="r"><code>groups_control &lt;- unique(metadata$condition[metadata$treatment_vector == 0])
 filtered_locations &lt;- filter_by_beta_in_cpgs(
   betavalue_df = betavalue_df,
   threshold_delta_beta = 25,
