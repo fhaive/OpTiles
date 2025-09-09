@@ -65,6 +65,8 @@ load_methylation_data <- function(metadata, repository, sample_name_variable,
   
   # Prepare lists for methylKit input
   lst_files <- lapply(file_list, function(x) x)
+  ord2 <- sapply(metadata[[sample_name_variable]], function(x) grep(paste0(x,"_"), lst_files))
+  metadata <- metadata[order(ord2),]
   lst_file_names <- lapply(metadata[[sample_name_variable]], identity)
   
   treatment_vector <- metadata[[treatment_variable]]
