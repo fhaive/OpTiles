@@ -11,6 +11,7 @@ The package implements the methods and algorithms described in the following sci
 If you use this package in your research, please cite the paper using the citation provided.
 
 ## Installation
+R version >4.4.1
 To install OpTiles, and download the packages
 
 ```
