@@ -8,6 +8,7 @@
 #'       the Bismark coverage file names (excluding the `.bismark.cov.gz` extension).
 #'   - A numeric vector column (name given by `treatment_variable`) encoding the treatment groups,
 #'       with length equal to the number of samples/files.
+#'   - A condition column that derive from a substring or pattern in sample names; it can help to create groups of interest that are recalled in other functions.
 #' @param repository Path to directory containing Bismark coverage files where the samples are ordered as in the metadata(`*.bismark.cov.gz`).
 #' @param sample_name_variable Character string specifying the metadata column with sample names.
 #' @param treatment_variable Character string specifying the metadata column with numeric treatment encoding.

@@ -6,7 +6,7 @@
 \usage{
 load_methylation_data(
   metadata,
-  idat_repository,
+  repository,
   sample_name_variable,
   treatment_variable,
   mincov,
@@ -23,9 +23,10 @@ load_methylation_data(
 - A column (name given by `sample_name_variable`) whose values are reported also in
     the Bismark coverage file names (excluding the `.bismark.cov.gz` extension).
 - A numeric vector column (name given by `treatment_variable`) encoding the treatment groups,
-    with length equal to the number of samples/files.}
+    with length equal to the number of samples/files.
+- A condition column that derive from a substring or pattern in sample names; it can help to create groups of interest that are recalled in other functions.}
 
-\item{idat_repository}{Path to directory containing Bismark coverage files where the samples are ordered as in the metadata(`*.bismark.cov.gz`).}
+\item{repository}{Path to directory containing Bismark coverage files where the samples are ordered as in the metadata(`*.bismark.cov.gz`).}
 
 \item{sample_name_variable}{Character string specifying the metadata column with sample names.}
 
@@ -55,7 +56,7 @@ using metadata with sample names and treatment information.
 \details{
 The metadata must meet the following requirements:
   The sample names in `metadata[[sample_name_variable]]` must exactly match
-        the coverage file names (without extensions) in `idat_repository`.
+        the coverage file names (without extensions) in `repository`.
   The treatment column specified by `treatment_variable` must be numeric and have the same length as the sample names.
 
 The function uses \code{methylKit} to read, normalize, filter, and unite methylation data.
