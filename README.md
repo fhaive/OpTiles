@@ -24,6 +24,11 @@ devtools::install(".")
 
 ```
 
+or simply from the RStudio console with
+```
+devtools::install_github("fhaive/OpTiles", build = F, type = "source")
+```
+
 ## Example script
 The script `how_to_use/OpTiles_example_script.R` contains the steps to reproduce the analysis described in the manual.
 All the input data used and the outputs produced are available on [Zenodo].
