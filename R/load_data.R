@@ -69,6 +69,7 @@ load_methylation_data <- function(metadata, repository, sample_name_variable,
   ord2 <- sapply(metadata[[sample_name_variable]], function(x) grep(paste0(x,"_"), lst_files))
   metadata <- metadata[order(ord2),]
   lst_file_names <- lapply(metadata[[sample_name_variable]], identity)
+  warning("Metadata was reordered to match file samples. The sample order in meth@sample.ids may differ from the metadata. Consider reordering your data frame columns to match the metadata order.")
   
   treatment_vector <- metadata[[treatment_variable]]
   
