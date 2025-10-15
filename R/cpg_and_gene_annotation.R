@@ -230,7 +230,7 @@ extract_gene_regions <- function(df, promoter_distance) {
 #' @param attributes_page A character string specifying the attribute page from which to select attributes.
 #' @param gene_biotype A string specifying the gene biotype filter (e.g., \code{"protein_coding"}).
 #' @param filter_gene_biotype A character vector of gene biotypes to filter.
-#' @param promoter_distance A numeric vector of length 2 specifying the upstream and downstream distances 
+#' @param promoter_distance A numeric vector of length 2, respectively the upstream and downstream distances 
 #'   to define the promoter region.
 #'
 #' @return A dataframe with annotated gene regions, including:
@@ -259,7 +259,7 @@ extract_gene_regions <- function(df, promoter_distance) {
 #'   attributes_page = "feature_page",
 #'   gene_biotype = "protein_coding",
 #'   filter_gene_biotype = c("protein_coding"),
-#'   promoter_distance = c(-2000, 500)
+#'   promoter_distance = c(2000, 500)
 #' )
 #' }
 #'

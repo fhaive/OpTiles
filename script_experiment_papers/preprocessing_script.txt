@@ -1,0 +1,20 @@
+The preprocessing of RRBS sequencing data was performed using Trim Galore and Bismark, two command-line tools widely used for adapter trimming, quality filtering, and bisulfite read alignment. 
+Below is the list of commands used to process the raw sequencing data, including trimming, alignment, filtering of incomplete bisulfite conversions, and methylation extraction steps.
+
+#Adapter and quality trimming on the data
+
+trim_galore --quality 20 --illumina --stringency 1 --fastqc --rrbs --length 40 --output_dir $OUTDIR --paired ${FASTQ_FILES_BASE}_R1.fq.gz ${FASTQ_FILES_BASE}_R2.fq.gz 
+
+#Alignment of trimmed sequencing reads using Bismark together with Bowtie2
+
+bismark --genome_folder $GENOME -1 ${FASTQ_FILES_BASE}_R1_val_1.fq.gz -2 ${FASTQ_FILES_BASE}_R2_val_2.fq.gz --output_dir $OUTPUT_DIR --temp_dir $TEMP_DIR --bowtie2 --parallel 20
+
+#Filtering incomplete bisulfite conversion from Bismark BAM files. Filters out reads with >3 methylated calls in non-CG context
+
+filter_non_conversion --paired ${OUTPUT_DIR}${SAMPLE}_R1_val_1_bismark_bt2_pe.bam
+
+#Extract methylation information from alignments with bowtie2
+#Bismark comes with a supplementary bismark_methylation_extractor script which operates on Bismark result files and extracts the methylation call for every single C analysed. 
+#For more details see https://github.com/FelixKrueger/Bismark/blob/master/docs/bismark/methylation_extraction.md
+
+bismark_methylation_extractor --gzip --bedGraph --paired-end --no_overlap --ignore_3prime 2 --buffer_size 40G --parallel 10 --genome_folder $GENOME --output_dir $OUTPUT_DIR $i

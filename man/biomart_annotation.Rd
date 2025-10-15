@@ -30,7 +30,7 @@ biomart_annotation(
 
 \item{filter_gene_biotype}{A character vector of gene biotypes to filter.}
 
-\item{promoter_distance}{A numeric vector of length 2 specifying the upstream and downstream distances 
+\item{promoter_distance}{A numeric vector of length 2, respectively the upstream and downstream distances 
 to define the promoter region.}
 }
 \value{
@@ -64,7 +64,7 @@ biomart_annotation(
   attributes_page = "feature_page",
   gene_biotype = "protein_coding",
   filter_gene_biotype = c("protein_coding"),
-  promoter_distance = c(-2000, 500)
+  promoter_distance = c(2000, 500)
 )
 }
 
