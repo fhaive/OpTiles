@@ -6,7 +6,7 @@ OpTiles, an R package that dynamically defines tiling windows based on the distr
 
 The package implements the methods and algorithms described in the following scientific publication:
 
-> **G. Migliaccio** (2025). *OpTiles: An R Package for Adaptive Tiling and Methylation Variability Profiling*. bioRxiv BIORXIV/2025/674166, DOI: [].
+> **G. Migliaccio** (2025). *OpTiles: An R Package for Adaptive Tiling and Methylation Variability Profiling*. Bioinformatics, DOI: [https://academic.oup.com/bioinformatics/article/41/11/btaf614/8317437].
 
 If you use this package in your research, please cite the paper using the citation provided.
 
