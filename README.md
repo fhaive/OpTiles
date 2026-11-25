@@ -30,8 +30,8 @@ Some dependencies are available only through Bioconductor or GitHub.
 
 ```
 # 1. Install BiocManager if not already installed
-if (!requireNamespace("BiocManager", quietly = TRUE))
-  install.packages("BiocManager")
+if (!requireNamespace("BiocManager", quietly = TRUE)){
+  install.packages("BiocManager")}
 
 # 2. Install Bioconductor dependencies
 BiocManager::install(c(
