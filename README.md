@@ -40,14 +40,14 @@ BiocManager::install(c(
 ), ask = FALSE, update = FALSE)
 
 # 3. Install easyGgplot2 from GitHub
-if (!requireNamespace("devtools", quietly = TRUE))
+if (!requireNamespace("devtools", quietly = TRUE)){
   install.packages("devtools")
-devtools::install_github("kassambara/easyGgplot2")
+devtools::install_github("kassambara/easyGgplot2")}
 
 # 4. Finally, install OpTiles
-if (!requireNamespace("devtools", quietly = TRUE))
+if (!requireNamespace("devtools", quietly = TRUE)){
   install.packages("devtools")
-devtools::install_github("fhaive/OpTiles", build = F, type = "source")
+devtools::install_github("fhaive/OpTiles", build = F, type = "source")}
 ```
 If you encounter missing-package errors, make sure both BiocManager and devtools are updated.
 
